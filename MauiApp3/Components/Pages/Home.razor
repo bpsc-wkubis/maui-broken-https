@@ -1,0 +1,100 @@
+﻿@page "/"
+@using Xamarin.Android.Net
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<button @onclick="FetchHttpLocalhost">Http Localhost</button>
+<button @onclick="FetchHttpsLocalhost">Https Localhost</button>
+<button @onclick="FetchGoogle">Google</button>
+<button @onclick="FetchGoogleWithoutHandler">Google without handler</button>
+
+
+<h1>@StatusCode</h1>
+
+@code
+{
+    private string? StatusCode { get; set; }
+
+    public async Task FetchHttpLocalhost()
+    {
+        var client = new HttpClient();
+
+        var response = await client.GetAsync("http://10.0.2.2:5196/weatherforecast");
+
+        response.EnsureSuccessStatusCode();
+
+        StatusCode = response.StatusCode.ToString();
+    }
+
+    public async Task FetchHttpsLocalhost()
+    {
+        var handler = new HttpsClientHandlerService();
+        var client = new HttpClient(handler.GetPlatformMessageHandler());
+
+        var response = await client.GetAsync("https://10.0.2.2:7051/weatherforecast");
+
+        response.EnsureSuccessStatusCode();
+
+        StatusCode = response.StatusCode.ToString();
+    }
+
+    public async Task FetchGoogle()
+    {
+        var handler = new HttpsClientHandlerService();
+        var client = new HttpClient(handler.GetPlatformMessageHandler());
+
+        var response = await client.GetAsync("https://google.com/");
+
+        response.EnsureSuccessStatusCode();
+
+        StatusCode = response.StatusCode.ToString();
+    }
+
+    public async Task FetchGoogleWithoutHandler()
+    {
+        var client = new HttpClient();
+
+        var response = await client.GetAsync("https://google.com/");
+
+        response.EnsureSuccessStatusCode();
+
+        StatusCode = response.StatusCode.ToString();
+    }
+
+    public class HttpsClientHandlerService
+    {
+        public HttpMessageHandler GetPlatformMessageHandler()
+        {
+#if ANDROID
+    var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+    handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+    {
+        if (cert != null && cert.Issuer.Equals("CN=localhost"))
+            return true;
+        return errors == System.Net.Security.SslPolicyErrors.None;
+    };
+    return handler;
+#elif IOS
+    var handler = new NSUrlSessionHandler
+    {
+        TrustOverrideForUrl = IsHttpsLocalhost
+    };
+    return handler;
+#else
+            throw new PlatformNotSupportedException("Only Android and iOS supported.");
+#endif
+        }
+
+#if IOS
+    public bool IsHttpsLocalhost(NSUrlSessionHandler sender, string url, Security.SecTrust trust)
+    {
+    if (url.StartsWith("https://localhost"))
+        return true;
+    return false;
+    }
+#endif
+    }
+
+}
